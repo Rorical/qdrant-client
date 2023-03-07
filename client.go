@@ -8,8 +8,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type Vector []float32
-
 type Qdrant struct {
 	connection *grpc.ClientConn
 	collection pb.CollectionsClient
@@ -109,7 +107,7 @@ func mapPayload(pl interface{}) *pb.Value {
 	}
 }
 
-func (c *Qdrant) Upsert(ctx context.Context, name string, points []Vector, payloads []map[string]interface{}, ids []string, wait bool) error {
+func (c *Qdrant) Upsert(ctx context.Context, name string, points [][]float32, payloads []map[string]interface{}, ids []string, wait bool) error {
 	pts := make([]*pb.PointStruct, len(points))
 	for i, p := range points {
 		var plds map[string]*pb.Value
@@ -188,7 +186,7 @@ func getPayloadMap(plds map[string]*pb.Value) map[string]interface{} {
 	return res
 }
 
-func (c *Qdrant) Search(ctx context.Context, name string, vec Vector, limit uint64) ([]string, []Vector, []map[string]interface{}, []float32, error) {
+func (c *Qdrant) Search(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []map[string]interface{}, []float32, error) {
 	res, err := c.points.Search(ctx, &pb.SearchPoints{
 		CollectionName: name,
 		Vector:         vec,
@@ -199,7 +197,7 @@ func (c *Qdrant) Search(ctx context.Context, name string, vec Vector, limit uint
 		return nil, nil, nil, nil, err
 	}
 	ids := make([]string, len(res.Result))
-	vecs := make([]Vector, len(res.Result))
+	vecs := make([][]float32, len(res.Result))
 	payloads := make([]map[string]interface{}, len(res.Result))
 	scores := make([]float32, len(res.Result))
 	for i, r := range res.Result {
