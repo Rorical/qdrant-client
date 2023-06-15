@@ -107,7 +107,7 @@ func mapPayload(pl interface{}) *pb.Value {
 	}
 }
 
-func (c *Qdrant) Upsert(ctx context.Context, name string, points [][]float32, payloads []map[string]interface{}, ids []string, wait bool) error {
+func (c *Qdrant) UpsertUUID(ctx context.Context, name string, points [][]float32, payloads []map[string]interface{}, ids []string, wait bool) error {
 	pts := make([]*pb.PointStruct, len(points))
 	for i, p := range points {
 		var plds map[string]*pb.Value
@@ -119,6 +119,30 @@ func (c *Qdrant) Upsert(ctx context.Context, name string, points [][]float32, pa
 		}
 		pts[i] = &pb.PointStruct{
 			Id:      &pb.PointId{PointIdOptions: &pb.PointId_Uuid{Uuid: ids[i]}},
+			Payload: plds,
+			Vectors: &pb.Vectors{VectorsOptions: &pb.Vectors_Vector{Vector: &pb.Vector{Data: p}}},
+		}
+	}
+	_, err := c.points.Upsert(ctx, &pb.UpsertPoints{
+		CollectionName: name,
+		Wait:           &wait,
+		Points:         pts,
+	})
+	return err
+}
+
+func (c *Qdrant) Upsert(ctx context.Context, name string, points [][]float32, payloads []map[string]interface{}, ids []uint64, wait bool) error {
+	pts := make([]*pb.PointStruct, len(points))
+	for i, p := range points {
+		var plds map[string]*pb.Value
+		if payloads != nil {
+			plds = make(map[string]*pb.Value)
+			for j, pld := range payloads[i] {
+				plds[j] = mapPayload(pld)
+			}
+		}
+		pts[i] = &pb.PointStruct{
+			Id:      &pb.PointId{PointIdOptions: &pb.PointId_Num{Num: ids[i]}},
 			Payload: plds,
 			Vectors: &pb.Vectors{VectorsOptions: &pb.Vectors_Vector{Vector: &pb.Vector{Data: p}}},
 		}
@@ -207,6 +231,22 @@ func (c *Qdrant) Search(ctx context.Context, name string, vec []float32, limit u
 		scores[i] = r.GetScore()
 	}
 	return ids, vecs, payloads, scores, nil
+}
+
+func (c *Qdrant) SearchWithoutPayloads(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []float32, error) {
+	res, err := c.points.Search(ctx, &pb.SearchPoints{
+		CollectionName: name,
+		Vector:         vec,
+		Limit:          limit,
+		WithPayload:    &pb.WithPayloadSelector{SelectorOptions: &pb.WithPayloadSelector_Enable{Enable: false}},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	ids := make([]string, len(res.Result))
+	vecs := make([][]float32, len(res.Result))
+	scores := make([]float32, len(res.Result))
+	return ids, vecs, scores, nil
 }
 
 func (c *Qdrant) Health(ctx context.Context) (string, string, error) {
