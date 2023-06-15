@@ -210,7 +210,30 @@ func getPayloadMap(plds map[string]*pb.Value) map[string]interface{} {
 	return res
 }
 
-func (c *Qdrant) Search(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []map[string]interface{}, []float32, error) {
+func (c *Qdrant) Search(ctx context.Context, name string, vec []float32, limit uint64) ([]uint64, [][]float32, []map[string]interface{}, []float32, error) {
+	res, err := c.points.Search(ctx, &pb.SearchPoints{
+		CollectionName: name,
+		Vector:         vec,
+		Limit:          limit,
+		WithPayload:    &pb.WithPayloadSelector{SelectorOptions: &pb.WithPayloadSelector_Enable{Enable: true}},
+	})
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	ids := make([]uint64, len(res.Result))
+	vecs := make([][]float32, len(res.Result))
+	payloads := make([]map[string]interface{}, len(res.Result))
+	scores := make([]float32, len(res.Result))
+	for i, r := range res.Result {
+		ids[i] = r.Id.GetNum()
+		vecs[i] = r.Vectors.GetVector().GetData()
+		payloads[i] = getPayloadMap(r.Payload)
+		scores[i] = r.GetScore()
+	}
+	return ids, vecs, payloads, scores, nil
+}
+
+func (c *Qdrant) SearchUUID(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []map[string]interface{}, []float32, error) {
 	res, err := c.points.Search(ctx, &pb.SearchPoints{
 		CollectionName: name,
 		Vector:         vec,
@@ -233,7 +256,28 @@ func (c *Qdrant) Search(ctx context.Context, name string, vec []float32, limit u
 	return ids, vecs, payloads, scores, nil
 }
 
-func (c *Qdrant) SearchWithoutPayloads(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []float32, error) {
+func (c *Qdrant) SearchWithoutPayloads(ctx context.Context, name string, vec []float32, limit uint64) ([]uint64, [][]float32, []float32, error) {
+	res, err := c.points.Search(ctx, &pb.SearchPoints{
+		CollectionName: name,
+		Vector:         vec,
+		Limit:          limit,
+		WithPayload:    &pb.WithPayloadSelector{SelectorOptions: &pb.WithPayloadSelector_Enable{Enable: false}},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	ids := make([]uint64, len(res.Result))
+	vecs := make([][]float32, len(res.Result))
+	scores := make([]float32, len(res.Result))
+	for i, r := range res.Result {
+		ids[i] = r.Id.GetNum()
+		vecs[i] = r.Vectors.GetVector().GetData()
+		scores[i] = r.GetScore()
+	}
+	return ids, vecs, scores, nil
+}
+
+func (c *Qdrant) SearchWithoutPayloadsUUID(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []float32, error) {
 	res, err := c.points.Search(ctx, &pb.SearchPoints{
 		CollectionName: name,
 		Vector:         vec,
@@ -246,6 +290,11 @@ func (c *Qdrant) SearchWithoutPayloads(ctx context.Context, name string, vec []f
 	ids := make([]string, len(res.Result))
 	vecs := make([][]float32, len(res.Result))
 	scores := make([]float32, len(res.Result))
+	for i, r := range res.Result {
+		ids[i] = r.Id.GetUuid()
+		vecs[i] = r.Vectors.GetVector().GetData()
+		scores[i] = r.GetScore()
+	}
 	return ids, vecs, scores, nil
 }
 
