@@ -34,19 +34,30 @@ func NewQdrantClient(addr string) (*Qdrant, error) {
 	}, nil
 }
 
-func (c *Qdrant) NewCollection(ctx context.Context, name string, vec_size uint64, vec_dist string) error {
+func (c *Qdrant) NewCollection(ctx context.Context, name string, vec_size uint64, vec_dist string, ondisk bool, quantile float32) error {
 	vd := pb.Distance_Euclid
 	if vec_dist == "DOT" {
 		vd = pb.Distance_Dot
 	} else if vec_dist == "COSINE" {
 		vd = pb.Distance_Cosine
 	}
+	alwaysRam := false
 	_, err := c.collection.Create(ctx, &pb.CreateCollection{
 		CollectionName: name,
 		VectorsConfig: &pb.VectorsConfig{Config: &pb.VectorsConfig_Params{
 			Params: &pb.VectorParams{
 				Size:     vec_size,
 				Distance: vd,
+				OnDisk:   &ondisk,
+				QuantizationConfig: &pb.QuantizationConfig{
+					Quantization: &pb.QuantizationConfig_Scalar{
+						Scalar: &pb.ScalarQuantization{
+							Type:      pb.QuantizationType_Int8,
+							Quantile:  &quantile,
+							AlwaysRam: &alwaysRam,
+						},
+					},
+				},
 			},
 		}},
 	})
