@@ -267,25 +267,36 @@ func (c *Qdrant) SearchUUID(ctx context.Context, name string, vec []float32, lim
 	return ids, vecs, payloads, scores, nil
 }
 
-func (c *Qdrant) SearchWithoutPayloads(ctx context.Context, name string, vec []float32, limit uint64) ([]uint64, [][]float32, []float32, error) {
+func (c *Qdrant) SearchOnlyIds(ctx context.Context, name string, vec []float32, limit uint64) ([]uint64, []float32, error) {
+	indexedOnly := true
+	ignoreQuant := false
+	rescoreQuant := true
+	oversamplingQuant := 4.0
 	res, err := c.points.Search(ctx, &pb.SearchPoints{
 		CollectionName: name,
 		Vector:         vec,
 		Limit:          limit,
-		WithPayload:    &pb.WithPayloadSelector{SelectorOptions: &pb.WithPayloadSelector_Enable{Enable: false}},
+		Params: &pb.SearchParams{
+			IndexedOnly: &indexedOnly,
+			Quantization: &pb.QuantizationSearchParams{
+				Ignore:       &ignoreQuant,
+				Rescore:      &rescoreQuant,
+				Oversampling: &oversamplingQuant,
+			},
+		},
+		WithVectors: &pb.WithVectorsSelector{SelectorOptions: &pb.WithVectorsSelector_Enable{Enable: false}},
+		WithPayload: &pb.WithPayloadSelector{SelectorOptions: &pb.WithPayloadSelector_Enable{Enable: false}},
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	ids := make([]uint64, len(res.Result))
-	vecs := make([][]float32, len(res.Result))
 	scores := make([]float32, len(res.Result))
 	for i, r := range res.Result {
 		ids[i] = r.Id.GetNum()
-		vecs[i] = r.Vectors.GetVector().GetData()
 		scores[i] = r.GetScore()
 	}
-	return ids, vecs, scores, nil
+	return ids, scores, nil
 }
 
 func (c *Qdrant) SearchWithoutPayloadsUUID(ctx context.Context, name string, vec []float32, limit uint64) ([]string, [][]float32, []float32, error) {
